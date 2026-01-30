@@ -180,17 +180,20 @@ ssh root@100.x.x.x  # Connect!
 
 ## File Transfer
 
-### Download from RunPod (to dated folder)
+### Download from RunPod (to versioned folder)
 
-Creates `~/Downloads/runpod_YYYY-MM-DD/` and downloads there:
+Creates `~/Downloads/runpod_1_01-30-2026/` (version_MM-DD-YYYY):
 
 ```bash
-# Set your RunPod IP
+# Set your RunPod IP and version
 RUNPOD=100.x.x.x
+V=1
 
-# Create dated folder and download
-mkdir -p ~/Downloads/runpod_$(date +%Y-%m-%d) && rsync -avz --progress --partial root@$RUNPOD:/workspace/ComfyUI/output/ ~/Downloads/runpod_$(date +%Y-%m-%d)/
+# Create versioned folder and download
+mkdir -p ~/Downloads/runpod_${V}_$(date +%m-%d-%Y) && rsync -avz --progress --partial root@$RUNPOD:/workspace/ComfyUI/output/ ~/Downloads/runpod_${V}_$(date +%m-%d-%Y)/
 ```
+
+Increment `V=2`, `V=3` for multiple sessions/pods.
 
 ### Upload to RunPod
 
