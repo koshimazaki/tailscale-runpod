@@ -1,7 +1,7 @@
 ---
 name: tailscale-runpod
 description: Setup Tailscale for SSH access to RunPod, Vast.ai, or any cloud GPU instance. Use when user asks to "setup Tailscale", "SSH to RunPod", "connect to cloud GPU", or needs VPN/mesh networking.
-version: 1.0.0
+version: 1.1.0
 author: koshimazaki
 ---
 
@@ -18,13 +18,13 @@ Connect to your cloud GPU instances via SSH using Tailscale mesh VPN.
 
 ## Quick Setup (Cloud Instance)
 
-**One command to install and connect:**
+**Run in JupyterLab terminal or RunPod SSH:**
 
 ```bash
-curl -fsSL https://tailscale.com/install.sh | sh && tailscaled --tun=userspace-networking --state=/workspace/tailscale.state & sleep 2 && tailscale up --ssh
+curl -fsSL https://tailscale.com/install.sh | bash; /usr/sbin/tailscaled --tun=userspace-networking --state=/workspace/tailscale.state & sleep 5; tailscale up --ssh
 ```
 
-Then click the auth URL to login.
+Click the auth URL to login. Then SSH from your local machine via Tailscale IP.
 
 ### Platform Paths
 
@@ -38,10 +38,10 @@ Then click the auth URL to login.
 **For non-RunPod platforms**, adjust the state path:
 ```bash
 # Lambda Labs
-tailscaled --tun=userspace-networking --state=/home/ubuntu/tailscale.state &
+/usr/sbin/tailscaled --tun=userspace-networking --state=/home/ubuntu/tailscale.state &
 
 # Paperspace
-tailscaled --tun=userspace-networking --state=/storage/tailscale.state &
+/usr/sbin/tailscaled --tun=userspace-networking --state=/storage/tailscale.state &
 ```
 
 ## SSH from Local Machine
@@ -63,13 +63,14 @@ Find the IP with `tailscale status` on either machine.
 #### 1. Install Tailscale
 
 ```bash
-curl -fsSL https://tailscale.com/install.sh | sh
+curl -fsSL https://tailscale.com/install.sh | bash
 ```
 
 #### 2. Start daemon (container mode)
 
 ```bash
-tailscaled --tun=userspace-networking --state=/workspace/tailscale.state &
+/usr/sbin/tailscaled --tun=userspace-networking --state=/workspace/tailscale.state &
+sleep 5
 ```
 
 | Flag | Purpose |
@@ -85,6 +86,8 @@ tailscale up --ssh
 ```
 
 **The `--ssh` flag is critical** - it enables Tailscale's built-in SSH server, required for SSH to work in containers.
+
+Click the auth URL to login via browser.
 
 #### 4. Get your Tailscale IP
 
@@ -114,20 +117,6 @@ Download from: https://tailscale.com/download/windows
 
 ---
 
-## Persist Across Restarts
-
-Use an auth key to avoid re-authenticating:
-
-```bash
-tailscaled --tun=userspace-networking --state=/workspace/tailscale.state & sleep 2 && tailscale up --ssh --authkey=tskey-auth-xxxxx
-```
-
-Generate auth key: https://login.tailscale.com/admin/settings/keys
-
-**Tip:** Add to your pod's startup script or save as `/workspace/start_tailscale.sh`
-
----
-
 ## Commands Reference
 
 | Command | Description |
@@ -147,16 +136,16 @@ Generate auth key: https://login.tailscale.com/admin/settings/keys
 | Problem | Solution |
 |---------|----------|
 | **SSH connection timeout** | Ensure you used `--ssh` flag: `tailscale up --ssh` |
-| **"tailscaled not running"** | Start daemon: `tailscaled --tun=userspace-networking &` |
+| **"tailscaled not running"** | Start daemon: `/usr/sbin/tailscaled --tun=userspace-networking &` |
 | **Peer shows "offline"** | Run `tailscale up --ssh` on that machine |
 | **Slow connection (relay)** | Wait for direct connection, or check `tailscale netcheck` |
-| **Auth expired** | Run `tailscale up --ssh` again, or use auth key |
+| **Auth expired** | Run `tailscale up --ssh` again |
 | **Version mismatch warning** | Usually harmless, update if issues persist |
 
 ### Full Reset
 
 ```bash
-pkill tailscaled; sleep 1; tailscaled --tun=userspace-networking --state=/workspace/tailscale.state & sleep 2 && tailscale up --ssh
+pkill tailscaled; sleep 1; /usr/sbin/tailscaled --tun=userspace-networking --state=/workspace/tailscale.state & sleep 5 && tailscale up --ssh
 ```
 
 ---
@@ -165,9 +154,9 @@ pkill tailscaled; sleep 1; tailscaled --tun=userspace-networking --state=/worksp
 
 ```bash
 # On RunPod (first time)
-curl -fsSL https://tailscale.com/install.sh | sh
-tailscaled --tun=userspace-networking --state=/workspace/tailscale.state &
-sleep 2
+curl -fsSL https://tailscale.com/install.sh | bash
+/usr/sbin/tailscaled --tun=userspace-networking --state=/workspace/tailscale.state &
+sleep 5
 tailscale up --ssh
 # Click the URL, login, note the IP (e.g., 100.x.x.x)
 
@@ -249,4 +238,9 @@ rpssh                           # SSH in
 - Tailscale IPs are only accessible within your tailnet
 - Traffic is end-to-end encrypted (WireGuard)
 - No ports exposed to public internet
-- Auth keys can be set to expire or be single-use
+
+## Important Notes
+
+- **Browser auth required** - You must click the auth URL each time. Authkey in startup commands doesn't work reliably for SSH in unprivileged containers.
+- **Userspace networking** - Required for containers without TUN device access
+- **`--ssh` flag** - Enables Tailscale's built-in SSH server, which is the only way SSH works in userspace mode

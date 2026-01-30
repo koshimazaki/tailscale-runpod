@@ -19,13 +19,13 @@ Provides instructions for setting up Tailscale on cloud GPU instances (RunPod, V
 
 ## Quick Start
 
-On your cloud instance:
+On your cloud instance (via JupyterLab terminal or RunPod SSH):
 
 ```bash
-curl -fsSL https://tailscale.com/install.sh | sh && tailscaled --tun=userspace-networking --state=/workspace/tailscale.state & sleep 2 && tailscale up --ssh
+curl -fsSL https://tailscale.com/install.sh | bash; /usr/sbin/tailscaled --tun=userspace-networking --state=/workspace/tailscale.state & sleep 5; tailscale up --ssh
 ```
 
-Then SSH from your local machine:
+Click the auth URL to login. Then SSH from your local machine:
 
 ```bash
 ssh root@<TAILSCALE_IP>
@@ -44,7 +44,8 @@ Standard Tailscale docs don't cover the container-specific requirements for clou
 
 1. Must use `--tun=userspace-networking` (no kernel TUN in containers)
 2. Must use `--ssh` flag (enables Tailscale's built-in SSH server)
-3. Must persist state to survive pod restarts
+3. Must use full path `/usr/sbin/tailscaled` (PATH may not be set)
+4. Browser auth required - authkey in startup commands doesn't work reliably for SSH
 
 ## License
 
