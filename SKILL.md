@@ -178,6 +178,69 @@ ssh root@100.x.x.x  # Connect!
 
 ---
 
+## File Transfer
+
+### Download from RunPod (to dated folder)
+
+Creates `~/Downloads/runpod_YYYY-MM-DD/` and downloads there:
+
+```bash
+# Set your RunPod IP
+RUNPOD=100.x.x.x
+
+# Create dated folder and download
+mkdir -p ~/Downloads/runpod_$(date +%Y-%m-%d) && rsync -avz --progress --partial root@$RUNPOD:/workspace/ComfyUI/output/ ~/Downloads/runpod_$(date +%Y-%m-%d)/
+```
+
+### Upload to RunPod
+
+```bash
+# Single file
+scp ~/file.png root@$RUNPOD:/workspace/ComfyUI/input/
+
+# Folder with progress (chunked, resumable)
+rsync -avz --progress --partial ~/models/ root@$RUNPOD:/workspace/ComfyUI/models/
+```
+
+### Large Files (chunked transfer)
+
+For reliability on large files, use rsync with block checksum:
+
+```bash
+# Download large files in ~1MB chunks, resumable
+rsync -avz --progress --partial --block-size=1048576 root@$RUNPOD:/workspace/outputs/ ~/Downloads/runpod_$(date +%Y-%m-%d)/
+
+# Upload with same settings
+rsync -avz --progress --partial --block-size=1048576 ~/large_model.safetensors root@$RUNPOD:/workspace/ComfyUI/models/
+```
+
+### Quick Aliases
+
+Add to `~/.zshrc` or `~/.bashrc`:
+
+```bash
+# Set your default RunPod IP
+export RUNPOD_IP="100.x.x.x"
+
+# Download outputs to dated folder
+alias rpget='mkdir -p ~/Downloads/runpod_$(date +%Y-%m-%d) && rsync -avz --progress --partial root@$RUNPOD_IP:/workspace/ComfyUI/output/ ~/Downloads/runpod_$(date +%Y-%m-%d)/'
+
+# Upload to inputs
+alias rpput='rsync -avz --progress --partial'
+
+# SSH shortcut
+alias rpssh='ssh root@$RUNPOD_IP'
+```
+
+Usage:
+```bash
+rpget                           # Download all outputs
+rpput file.png root@$RUNPOD_IP:/workspace/ComfyUI/input/
+rpssh                           # SSH in
+```
+
+---
+
 ## Security Notes
 
 - Tailscale IPs are only accessible within your tailnet
