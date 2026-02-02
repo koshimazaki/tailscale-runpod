@@ -19,10 +19,10 @@ Provides instructions for setting up Tailscale on cloud GPU instances (RunPod, V
 
 ## Quick Start
 
-On your cloud instance (via JupyterLab terminal or RunPod SSH):
+On your cloud instance (via JupyterLab terminal or RunPod web SSH):
 
 ```bash
-curl -fsSL https://tailscale.com/install.sh | bash; /usr/sbin/tailscaled --tun=userspace-networking --state=/workspace/tailscale.state & sleep 5; tailscale up --ssh
+curl -fsSL https://tailscale.com/install.sh | sh && tailscaled --tun=userspace-networking --state=/workspace/tailscale.state & sleep 3 && tailscale up --ssh && service ssh start
 ```
 
 Click the auth URL to login. Then SSH from your local machine:
@@ -35,17 +35,38 @@ ssh root@<TAILSCALE_IP>
 
 - **Container-optimized** - Uses `--tun=userspace-networking` for Docker environments
 - **Persistence** - Stores state in `/workspace/` to survive restarts
-- **SSH enabled** - The `--ssh` flag is critical for container SSH access
+- **SSH enabled** - Both `--ssh` flag and `service ssh start` for reliability
 - **Multi-platform** - Works on RunPod, Vast.ai, Lambda Labs, Paperspace
+
+## Troubleshooting
+
+If SSH connection fails, run these on the pod:
+
+```bash
+# Check if SSH daemon is running
+which sshd && service ssh start
+
+# Verify Tailscale is connected
+tailscale status
+
+# Re-authenticate if needed
+tailscale up
+```
+
+If Tailscale daemon died (after pod sleep/wake):
+
+```bash
+tailscaled --tun=userspace-networking --state=/workspace/tailscale.state & sleep 3 && tailscale up && service ssh start
+```
 
 ## Why This Skill?
 
 Standard Tailscale docs don't cover the container-specific requirements for cloud GPU platforms. This skill includes the gotchas we discovered:
 
 1. Must use `--tun=userspace-networking` (no kernel TUN in containers)
-2. Must use `--ssh` flag (enables Tailscale's built-in SSH server)
-3. Must use full path `/usr/sbin/tailscaled` (PATH may not be set)
-4. Browser auth required - authkey in startup commands doesn't work reliably for SSH
+2. Use `--ssh` flag OR `service ssh start` (or both for reliability)
+3. Must persist state to survive pod restarts
+4. Browser auth required - authkey in startup commands doesn't work reliably
 
 ## License
 
