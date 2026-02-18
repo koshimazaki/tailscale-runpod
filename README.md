@@ -22,7 +22,7 @@ Provides instructions for setting up Tailscale on cloud GPU instances (RunPod, V
 On your cloud instance (via JupyterLab terminal or RunPod web SSH):
 
 ```bash
-curl -fsSL https://tailscale.com/install.sh | sh && tailscaled --tun=userspace-networking --state=/workspace/tailscale.state & sleep 3 && tailscale up --ssh && service ssh start
+apt-get update -qq && apt-get install -y -qq tailscale >/dev/null 2>&1; /usr/sbin/tailscaled --tun=userspace-networking --state=/workspace/tailscale.state & sleep 5; tailscale up --ssh
 ```
 
 Click the auth URL to login. Then SSH from your local machine:
@@ -35,28 +35,26 @@ ssh root@<TAILSCALE_IP>
 
 - **Container-optimized** - Uses `--tun=userspace-networking` for Docker environments
 - **Persistence** - Stores state in `/workspace/` to survive restarts
-- **SSH enabled** - Both `--ssh` flag and `service ssh start` for reliability
+- **SSH enabled** - `--ssh` flag enables Tailscale's built-in SSH server
 - **Multi-platform** - Works on RunPod, Vast.ai, Lambda Labs, Paperspace
+- **No pipe-to-shell** - Installs via system package manager (apt)
 
 ## Troubleshooting
 
 If SSH connection fails, run these on the pod:
 
 ```bash
-# Check if SSH daemon is running
-which sshd && service ssh start
-
-# Verify Tailscale is connected
+# Check if Tailscale is connected
 tailscale status
 
 # Re-authenticate if needed
-tailscale up
+tailscale up --ssh
 ```
 
 If Tailscale daemon died (after pod sleep/wake):
 
 ```bash
-tailscaled --tun=userspace-networking --state=/workspace/tailscale.state & sleep 3 && tailscale up && service ssh start
+/usr/sbin/tailscaled --tun=userspace-networking --state=/workspace/tailscale.state & sleep 5 && tailscale up --ssh
 ```
 
 ## Why This Skill?
@@ -64,9 +62,9 @@ tailscaled --tun=userspace-networking --state=/workspace/tailscale.state & sleep
 Standard Tailscale docs don't cover the container-specific requirements for cloud GPU platforms. This skill includes the gotchas we discovered:
 
 1. Must use `--tun=userspace-networking` (no kernel TUN in containers)
-2. Use `--ssh` flag OR `service ssh start` (or both for reliability)
-3. Must persist state to survive pod restarts
-4. Browser auth required - authkey in startup commands doesn't work reliably
+2. Must use `--ssh` flag (enables Tailscale's built-in SSH server for container environments)
+3. Must persist state to `/workspace/` to survive pod restarts
+4. Browser auth required — authkey doesn't work reliably in unprivileged containers
 
 ## License
 
