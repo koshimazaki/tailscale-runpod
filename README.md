@@ -22,8 +22,10 @@ Provides instructions for setting up Tailscale on cloud GPU instances (RunPod, V
 On your cloud instance (via JupyterLab terminal or RunPod web SSH):
 
 ```bash
-apt-get update -qq && apt-get install -y -qq tailscale >/dev/null 2>&1; /usr/sbin/tailscaled --tun=userspace-networking --state=/workspace/tailscale.state & sleep 5; tailscale up --ssh
+curl -fsSL https://tailscale.com/install.sh | bash && /usr/sbin/tailscaled --tun=userspace-networking --state=/workspace/tailscale.state & sleep 5 && tailscale up --ssh
 ```
+
+> Most cloud GPU containers don't have Tailscale in their default apt repos, so the official install script is required.
 
 Click the auth URL to login. Then SSH from your local machine:
 
@@ -37,7 +39,7 @@ ssh root@<TAILSCALE_IP>
 - **Persistence** - Stores state in `/workspace/` to survive restarts
 - **SSH enabled** - `--ssh` flag enables Tailscale's built-in SSH server
 - **Multi-platform** - Works on RunPod, Vast.ai, Lambda Labs, Paperspace
-- **No pipe-to-shell** - Installs via system package manager (apt)
+- **Official install** - Uses Tailscale's install script (apt repos unavailable on most cloud GPU images)
 
 ## Troubleshooting
 

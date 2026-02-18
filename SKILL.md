@@ -1,7 +1,7 @@
 ---
 name: tailscale-runpod
 description: Setup Tailscale for SSH access to RunPod, Vast.ai, or any cloud GPU instance. Use when user asks to "setup Tailscale", "SSH to RunPod", "connect to cloud GPU", or needs VPN/mesh networking.
-version: 1.2.0
+version: 1.3.0
 author: koshimazaki
 ---
 
@@ -21,8 +21,10 @@ Connect to your cloud GPU instances via SSH using Tailscale mesh VPN.
 **Run in JupyterLab terminal or RunPod SSH:**
 
 ```bash
-apt-get update -qq && apt-get install -y -qq tailscale >/dev/null 2>&1; /usr/sbin/tailscaled --tun=userspace-networking --state=/workspace/tailscale.state & sleep 5; tailscale up --ssh
+curl -fsSL https://tailscale.com/install.sh | bash && /usr/sbin/tailscaled --tun=userspace-networking --state=/workspace/tailscale.state & sleep 5 && tailscale up --ssh
 ```
+
+> **Why curl|bash?** Most cloud GPU containers (RunPod, Vast.ai) don't include Tailscale in their default apt repos. The official install script from `tailscale.com` is the only reliable method. If your image has Tailscale pre-installed, skip to step 2.
 
 Click the auth URL to login. Then SSH from your local machine via Tailscale IP.
 
@@ -60,22 +62,19 @@ Find the IP with `tailscale status` on either machine.
 
 ### Cloud Instance (RunPod/Vast.ai)
 
-#### 1. Install Tailscale via package manager
+#### 1. Install Tailscale
 
-**Option A — Direct apt install (if available in base image):**
+**Option A — Official install script (works on all cloud GPU containers):**
+```bash
+curl -fsSL https://tailscale.com/install.sh | bash
+```
+
+**Option B — apt install (only if Tailscale is in the image's repos):**
 ```bash
 apt-get update && apt-get install -y tailscale
 ```
 
-**Option B — Add official Tailscale apt repository first:**
-```bash
-apt-get update && apt-get install -y curl gpg
-curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg -o /usr/share/keyrings/tailscale-archive-keyring.gpg
-curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/noble.tailscale-keyring.list -o /etc/apt/sources.list.d/tailscale.list
-apt-get update && apt-get install -y tailscale
-```
-
-> **Note:** Replace `noble` with your Ubuntu codename (`jammy`, `focal`, etc.) if needed. Check with `lsb_release -cs`.
+> **Note:** Option B fails on most RunPod/Vast.ai images since Tailscale isn't in their default apt sources. Option A is the reliable path.
 
 #### 2. Start daemon (container mode)
 
@@ -168,7 +167,7 @@ pkill tailscaled; sleep 1; /usr/sbin/tailscaled --tun=userspace-networking --sta
 
 ```bash
 # On RunPod (first time)
-apt-get update -qq && apt-get install -y -qq tailscale >/dev/null 2>&1
+curl -fsSL https://tailscale.com/install.sh | bash
 /usr/sbin/tailscaled --tun=userspace-networking --state=/workspace/tailscale.state &
 sleep 5
 tailscale up --ssh
@@ -249,7 +248,7 @@ rpssh                           # SSH in
 
 ## Security Notes
 
-- Tailscale is installed via the system package manager (apt) — no pipe-to-shell
+- Tailscale is installed via the official install script (`tailscale.com/install.sh`) — required since cloud GPU containers lack Tailscale in default apt repos
 - Tailscale IPs are only accessible within your tailnet
 - Traffic is end-to-end encrypted (WireGuard)
 - No ports exposed to public internet
