@@ -1,161 +1,80 @@
 ---
-name: tailscale-runpod
-description: Setup Tailscale for SSH access to RunPod, Vast.ai, or any cloud GPU instance. Use when user asks to "setup Tailscale", "SSH to RunPod", "connect to cloud GPU", or needs VPN/mesh networking.
-version: 1.3.0
+name: cloud-gpu-box
+description: Connect to and operate a rented cloud GPU box (RunPod, Vast.ai, Lambda, Paperspace) — Tailscale SSH setup, plus the operational failure modes that silently waste credit: unusable tailnet bulk transfer, pgrep self-match over SSH, shared-GPU VRAM contention, no cross-instance volume, gated model repos, PEP-668 pip. Use when setting up Tailscale, SSHing to a cloud GPU, moving data to or from an instance, or running long training/inference jobs on rented hardware.
+version: 2.0.0
 author: koshimazaki
 ---
 
-# Tailscale for Cloud GPU (RunPod/Vast.ai)
+# Cloud GPU box — connect and operate
 
-Connect to your cloud GPU instances via SSH using Tailscale mesh VPN.
+Boxes bill by the minute and nothing survives them. Part 1 gets you connected;
+Part 2 is the failure modes that cost real credit to learn.
 
-## Why Tailscale?
+---
 
-- **Direct SSH** - No port forwarding or exposed services
-- **Persistent IP** - Same IP even after pod restarts
-- **Secure** - End-to-end encrypted, no public exposure
-- **Works anywhere** - Bypasses NAT and firewalls
+# Part 1 — Connect with Tailscale
 
-## Quick Setup (Cloud Instance)
+- **Direct SSH** — no port forwarding or exposed services
+- **Persistent IP** — same IP after pod restarts
+- **Secure** — end-to-end encrypted, nothing public
+- **Works anywhere** — bypasses NAT and firewalls
 
-**Run in JupyterLab terminal or RunPod SSH:**
+## Quick setup (cloud instance)
+
+Run in the JupyterLab terminal or the provider's web SSH:
 
 ```bash
-curl -fsSL https://tailscale.com/install.sh | bash && /usr/sbin/tailscaled --tun=userspace-networking --state=/workspace/tailscale.state & sleep 5 && tailscale up --ssh
+curl -fsSL https://tailscale.com/install.sh | bash && /usr/sbin/tailscaled --tun=userspace-networking --state=/workspace/tailscale.state & sleep 5 && tailscale up --ssh --hostname=<name>
 ```
 
-> **Why curl|bash?** Most cloud GPU containers (RunPod, Vast.ai) don't include Tailscale in their default apt repos. The official install script from `tailscale.com` is the only reliable method. If your image has Tailscale pre-installed, skip to step 2.
+> **Why curl|bash?** Most cloud GPU containers don't ship Tailscale in their apt
+> repos. The official install script is the reliable path. Skip if your image
+> has it pre-installed.
 
-Click the auth URL to login. Then SSH from your local machine via Tailscale IP.
+Click the auth URL to log in, then SSH from your machine.
 
-### Platform Paths
+**Name the host.** `--hostname=<name>` beats memorising a 100.x address, and
+matters once you have more than one box on the tailnet.
 
-| Platform | Persistent Storage | Default User |
-|----------|-------------------|--------------|
+### Platform paths
+
+| Platform | Persistent storage | Default user |
+|---|---|---|
 | RunPod | `/workspace/` | `root` |
 | Vast.ai | `/workspace/` | `root` |
 | Lambda Labs | `/home/ubuntu/` | `ubuntu` |
 | Paperspace | `/storage/` | `paperspace` |
 
-**For non-RunPod platforms**, adjust the state path:
-```bash
-# Lambda Labs
-/usr/sbin/tailscaled --tun=userspace-networking --state=/home/ubuntu/tailscale.state &
+Adjust `--state=` to match, or auth is lost on restart.
 
-# Paperspace
-/usr/sbin/tailscaled --tun=userspace-networking --state=/storage/tailscale.state &
-```
-
-## SSH from Local Machine
-
-Once connected:
-
-```bash
-ssh root@<TAILSCALE_IP>
-```
-
-Find the IP with `tailscale status` on either machine.
-
----
-
-## Detailed Setup
-
-### Cloud Instance (RunPod/Vast.ai)
-
-#### 1. Install Tailscale
-
-**Option A — Official install script (works on all cloud GPU containers):**
-```bash
-curl -fsSL https://tailscale.com/install.sh | bash
-```
-
-**Option B — apt install (only if Tailscale is in the image's repos):**
-```bash
-apt-get update && apt-get install -y tailscale
-```
-
-> **Note:** Option B fails on most RunPod/Vast.ai images since Tailscale isn't in their default apt sources. Option A is the reliable path.
-
-#### 2. Start daemon (container mode)
-
-```bash
-/usr/sbin/tailscaled --tun=userspace-networking --state=/workspace/tailscale.state &
-sleep 5
-```
+## The three flags that matter
 
 | Flag | Purpose |
-|------|---------|
-| `--tun=userspace-networking` | Required for containers (no kernel TUN device) |
-| `--state=/workspace/` | Persist auth across restarts |
-| `&` | Run in background |
+|---|---|
+| `--tun=userspace-networking` | required in containers — no kernel TUN device |
+| `--state=/workspace/…` | persists auth across restarts |
+| `--ssh` | enables Tailscale's SSH server — **the only way SSH works in userspace mode** |
 
-#### 3. Connect with SSH enabled
-
-```bash
-tailscale up --ssh
-```
-
-**The `--ssh` flag is critical** - it enables Tailscale's built-in SSH server, required for SSH to work in containers.
-
-Click the auth URL to login via browser.
-
-#### 4. Get your Tailscale IP
-
-```bash
-tailscale ip -4
-```
-
-### Local Machine (macOS)
-
-```bash
-brew install --cask tailscale
-open -a Tailscale
-```
-
-Or download from the Mac App Store.
-
-### Local Machine (Linux)
-
-```bash
-# Ubuntu/Debian
-sudo apt-get update && sudo apt-get install -y tailscale
-sudo tailscale up
-```
-
-For other distros, see https://tailscale.com/download/linux
-
-### Local Machine (Windows)
-
-Download from https://tailscale.com/download/windows or install via `winget install Tailscale.Tailscale`.
-
----
-
-## Commands Reference
+## Commands
 
 | Command | Description |
-|---------|-------------|
-| `tailscale status` | Show all connected devices |
-| `tailscale ip -4` | Get your Tailscale IPv4 |
-| `tailscale up --ssh` | Connect with SSH enabled |
-| `tailscale down` | Disconnect |
-| `tailscale ping <ip>` | Test connectivity to peer |
-| `tailscale netcheck` | Network diagnostics |
-| `tailscale logout` | Sign out completely |
-
----
+|---|---|
+| `tailscale status` | connected devices, and **direct vs DERP relay** |
+| `tailscale ping <host>` | round-trip time and path type |
+| `tailscale ip -4` | your IPv4 |
+| `tailscale netcheck` | network diagnostics |
 
 ## Troubleshooting
 
 | Problem | Solution |
-|---------|----------|
-| **SSH connection timeout** | Ensure you used `--ssh` flag: `tailscale up --ssh` |
-| **"tailscaled not running"** | Start daemon: `/usr/sbin/tailscaled --tun=userspace-networking &` |
-| **Peer shows "offline"** | Run `tailscale up --ssh` on that machine |
-| **Slow connection (relay)** | Wait for direct connection, or check `tailscale netcheck` |
-| **Auth expired** | Run `tailscale up --ssh` again |
-| **Version mismatch warning** | Usually harmless, update if issues persist |
+|---|---|
+| SSH times out | you omitted `--ssh`; run `tailscale up --ssh` again |
+| "tailscaled not running" | start the daemon with the userspace flag |
+| Peer shows offline | run `tailscale up --ssh` on that machine |
+| Auth expired | `tailscale up --ssh` again |
+| Slow transfers | **expected — see Part 2. Do not fix this by waiting.** |
 
-### Full Reset
+Full reset:
 
 ```bash
 pkill tailscaled; sleep 1; /usr/sbin/tailscaled --tun=userspace-networking --state=/workspace/tailscale.state & sleep 5 && tailscale up --ssh
@@ -163,99 +82,203 @@ pkill tailscaled; sleep 1; /usr/sbin/tailscaled --tun=userspace-networking --sta
 
 ---
 
-## Example Workflow
+# Part 2 — Operating the box
+
+## Moving data: control and bulk are different problems
+
+**Tailscale SSH is for control. Do not move bulk data over it.**
+
+With `--tun=userspace-networking` every tailnet route is relayed and CPU-bound.
+Measured against a box on another continent:
+
+| Path | Rate |
+|---|---|
+| object store → box (HuggingFace, S3) | **86–146 MB/s** |
+| laptop → box over tailnet | **~11 KB/s** |
+| box → box over tailnet | ~250 KB/s |
+
+The box's own internet is usually excellent. The **tailnet path into it** is the
+bottleneck, and no amount of waiting fixes it — a 364 MB test transfer ran 24
+minutes before being killed.
+
+**Check the path before trusting it:**
 
 ```bash
-# On RunPod (first time)
-curl -fsSL https://tailscale.com/install.sh | bash
-/usr/sbin/tailscaled --tun=userspace-networking --state=/workspace/tailscale.state &
-sleep 5
-tailscale up --ssh
-# Click the URL, login, note the IP (e.g., 100.x.x.x)
-
-# On your Mac
-tailscale status  # Verify pod is online
-ssh root@100.x.x.x  # Connect!
+tailscale ping <host>     # reports direct vs DERP(<region>) and RTT
 ```
 
----
+A DERP relay with 300 ms RTT means bulk transfer will not work. Route it
+through an object store instead: **upload once from whichever machine has the
+fast uplink, then let the box pull.** A datacenter box uploads orders of
+magnitude faster than a home connection, so prefer box → store → box over
+laptop → box.
 
-## File Transfer
+### When rsync over Tailscale *is* fine
 
-### Download from RunPod (to versioned folder)
-
-Creates `~/Downloads/runpod_1_01-30-2026/` (version_MM-DD-YYYY):
+Small files, or a nearby box with a direct connection. Scripts, configs,
+manifests, a few images — all fine.
 
 ```bash
-# Set your RunPod IP and version
-RUNPOD=100.x.x.x
-V=1
-
-# Create versioned folder and download
-mkdir -p ~/Downloads/runpod_${V}_$(date +%m-%d-%Y) && rsync -avz --progress --partial root@$RUNPOD:/workspace/ComfyUI/output/ ~/Downloads/runpod_${V}_$(date +%m-%d-%Y)/
+rsync -avz --progress --partial root@<host>:/workspace/outputs/ ~/Downloads/out/
 ```
 
-Increment `V=2`, `V=3` for multiple sessions/pods.
-
-### Upload to RunPod
+Many small files move faster in one stream than as separate `scp` calls:
 
 ```bash
-# Single file
-scp ~/file.png root@$RUNPOD:/workspace/ComfyUI/input/
-
-# Folder with progress (chunked, resumable)
-rsync -avz --progress --partial ~/models/ root@$RUNPOD:/workspace/ComfyUI/models/
+ssh <host> 'cd /workspace && tar cf - <files>' | tar xf - -C dest/
 ```
 
-### Large Files (chunked transfer)
+### Pulling results back
 
-For reliability on large files, use rsync with block checksum:
+Pulling *from* a box is often usable even when pushing *into* it is not — but
+measure rather than assume. For anything large, have the box push to the object
+store and pull from there.
+
+## Traps that waste a session
+
+**`pgrep -f` / `pkill -f` self-match over SSH.** When you run
+`ssh box 'pkill -f foo.sh'`, the remote shell's own command line *contains*
+`foo.sh`, so the pattern matches the shell executing it. Observed:
+
+- `pkill -f x.sh` killed the SSH session mid-command. The background jobs it was
+  about to launch never started — and the launch still reported success.
+- A wait loop `while pgrep -f job; do sleep 20; done` deadlocked against
+  processes that merely had the string in their argv, including an earlier
+  backgrounded SSH wait-loop and the SSH call that wrote the script via heredoc
+  (the whole script text sits in that process's argv).
+- `pgrep` reports a finished job as still RUNNING — misleading in the worst
+  direction.
+
+**Wait on a terminal marker in the log, never a process pattern:**
 
 ```bash
-# Download large files in ~1MB chunks, resumable
-rsync -avz --progress --partial --block-size=1048576 root@$RUNPOD:/workspace/outputs/ ~/Downloads/runpod_$(date +%Y-%m-%d)/
-
-# Upload with same settings
-rsync -avz --progress --partial --block-size=1048576 ~/large_model.safetensors root@$RUNPOD:/workspace/ComfyUI/models/
+until grep -q JOB_DONE /workspace/job.log; do sleep 20; done
 ```
 
-### Quick Aliases
+If you must match a process, kill by PID, or split the literal
+(`P="jo""b.sh"`) so it cannot appear contiguously in your own command line.
 
-Add to `~/.zshrc` or `~/.bashrc`:
+**Never edit a script while it is running.** Bash reads by byte offset, so
+overwriting a running script makes it jump into the wrong stage. Observed: a
+chain script skipped its setup stages and ran the final step against half-built
+state. Write to a new path and relaunch.
+
+**Two GPU consumers will fight.** A served inference app (ComfyUI and similar)
+holds weights in VRAM after a run — 66 GB in one case — and a separate
+training process then OOMs behind it. Free it explicitly between phases:
 
 ```bash
-# Set your default RunPod IP
-export RUNPOD_IP="100.x.x.x"
-
-# Download outputs to dated folder
-alias rpget='mkdir -p ~/Downloads/runpod_$(date +%Y-%m-%d) && rsync -avz --progress --partial root@$RUNPOD_IP:/workspace/ComfyUI/output/ ~/Downloads/runpod_$(date +%Y-%m-%d)/'
-
-# Upload to inputs
-alias rpput='rsync -avz --progress --partial'
-
-# SSH shortcut
-alias rpssh='ssh root@$RUNPOD_IP'
+curl -s -X POST http://127.0.0.1:8189/free -H 'Content-Type: application/json' \
+  -d '{"unload_models":true,"free_memory":true}'
 ```
 
-Usage:
+**An extracted archive overwrites the directory it lands in.** Local edits to
+scripts inside it revert silently on the next extract. Keep edits outside the
+extract path, or re-apply them idempotently.
+
+## Nothing survives the box
+
+There is usually **no cross-instance volume**. When the instance dies,
+everything on it dies.
+
+- **Ship each stage as it completes**, never batch to the end. A credit wall
+  then costs one stage, not the session.
+- Make long chains **resumable** — skip a stage whose output already exists.
+- **Verify before terminating.** Compare counts on both sides; do not trust
+  "the rsync finished". Diff file counts per category.
+
+## Bootstrap gotchas
+
+- **`pip` is PEP-668 blocked** on current images. Use
+  `uv tool install "<pkg>[extras]"`, or `pip --break-system-packages`.
+- **Gated model repos fail with a misleading error** — "requires approval"
+  rather than "unauthenticated". Put the token in place *before* a long pull,
+  or you find out 60 GB later.
+- **A served app may cache its model list at startup.** Files symlinked in
+  afterwards are invisible until restart — the dropdown will not offer them and
+  graphs referencing them fail validation with no useful message.
+
+## Long jobs
+
+Detach properly, or an SSH drop kills the work:
+
 ```bash
-rpget                           # Download all outputs
-rpput file.png root@$RUNPOD_IP:/workspace/ComfyUI/input/
-rpssh                           # SSH in
+setsid nohup bash job.sh > /workspace/job.log 2>&1 < /dev/null &
+disown
 ```
 
----
+- Emit **explicit terminal markers** (`STAGE_DONE`, `EXIT=$?`) so progress can
+  be waited on without process matching.
+- **Measure the rate in the first minute** — sample a counter, sleep, sample
+  again. Knowing MB/s or seconds-per-item early tells you whether to keep
+  paying for the approach.
+- **Batch everything that shares a model load.** Loading usually dominates
+  runtime; N items through one load beats N loads by an order of magnitude.
+  Check whether the underlying config supports per-item parameters even when
+  the CLI does not expose them — in one case this turned 15 model loads into 3.
 
-## Security Notes
+## Graph-driven tools (ComfyUI and similar)
 
-- Tailscale is installed via the official install script (`tailscale.com/install.sh`) — required since cloud GPU containers lack Tailscale in default apt repos
-- Tailscale IPs are only accessible within your tailnet
-- Traffic is end-to-end encrypted (WireGuard)
-- No ports exposed to public internet
-- The `tailscaled` daemon runs in userspace mode (no kernel modifications)
+- **Validate against the live schema before queueing.** Dump `/object_info` and
+  check every class and input name. A wrong input name yields a generic
+  "failed validation" naming no field.
+- **A schema dump taken during startup may be incomplete.** Node packs register
+  asynchronously; a class can look missing when it merely had not loaded. Re-dump
+  from the running server before concluding a node is absent.
+- **Widget `step` values are UI increments, not validation.** A dimension of
+  720 may be silently rounded to 704 rather than rejected.
+- **A missing custom node fails silently** — the graph falls back to core nodes,
+  still "validates", and produces subtly wrong output.
 
-## Important Notes
+## Choosing a box
 
-- **Browser auth required** - You must click the auth URL each time. Authkey in startup commands doesn't work reliably for SSH in unprivileged containers.
-- **Userspace networking** - Required for containers without TUN device access
-- **`--ssh` flag** - Enables Tailscale's built-in SSH server, which is the only way SSH works in userspace mode
+- **Size the card from measured VRAM, not hope.** One 22B video model at
+  720×1280 peaked at 41 GB quantised and 78 GB in bf16 — a 32 GB card holds
+  neither.
+- **Prefer local NVMe for the working volume.** Model *loading* often dominates
+  batch jobs: the same load took **57 s** on local NVMe versus **~8 min** on a
+  network mount. That 8× dwarfs any hourly price difference.
+- **Check geography.** A distant box is fine for compute and painful for
+  anything interactive.
+- **Check the disk quota**, not just the host disk. Weights run to tens of GB
+  and a CUDA venv adds 10–15 more.
+
+## Secrets
+
+Do not keep API tokens in plaintext files or paste them into terminals, chat
+logs, or scripts. On macOS, store once in the Keychain and read at point of use:
+
+```bash
+# once — prompts for the value, echoes nothing, no shell history
+security add-generic-password -a "$USER" -s hf-token -w
+
+# at point of use
+export HF_TOKEN=$(security find-generic-password -a "$USER" -s hf-token -w)
+```
+
+**Environment variable, never argv** — anything passed as a command argument is
+visible in `ps` while it runs.
+
+Choose the prompt policy deliberately: *Allow* each time is genuinely stronger
+but interrupts unattended runs; *Always Allow* reduces the guarantee to "a file,
+but tidier".
+
+To move a token between your own machines without it touching a log, copy the
+file directly rather than echoing it:
+
+```bash
+rsync -a -e ssh me@boxA:/workspace/.token /workspace/.token && chmod 600 /workspace/.token
+```
+
+**The rule that matters more than the mechanism:** an agent or script should
+never receive the raw value — it invokes a command that reads it. Keychain
+protects storage, not disclosure. A token that reaches a transcript still needs
+rotating.
+
+## Cost discipline
+
+Renders are cheap; **idle boxes and re-downloads burn credit.** A 57-clip batch
+cost about $0.30 of GPU while the 66 GB weight pull cost more.
+
+**Do the cheap decisive experiment first** when its outcome changes how the
+expensive work should be done — otherwise you do the expensive work twice.
