@@ -1,4 +1,4 @@
-# tailscale-runpod
+# tailscale-cloud-GPU-box
 
 SSH into RunPod, Vast.ai, and other cloud GPU instances using Tailscale mesh VPN.
 
